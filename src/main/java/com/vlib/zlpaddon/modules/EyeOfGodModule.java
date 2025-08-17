@@ -96,9 +96,6 @@ public class EyeOfGodModule extends Module {
                 ZlpMapPlayersDTO netherZlpMapPlayersDto = new ObjectMapper().readValue(netherReq.get(), ZlpMapPlayersDTO.class);
 
                 for (int i = 0; i < nicknamesList.size(); i++) {
-                    if(nicknamesList.isEmpty()){
-                        return;
-                    }
                     String nickname = nicknamesList.get(i);
                     Predicate<ZlpMapPlayersDTO.ZlpMapPlayerDTO> equalsName = player -> player.getName().toLowerCase().equals(nickname.toLowerCase());
                     Predicate<ZlpMapPlayersDTO.ZlpMapPlayerDTO> isInDimension = player -> !player.isForeign();
@@ -121,6 +118,9 @@ public class EyeOfGodModule extends Module {
                     } else {
                         ChatUtils.error("Player '%s' not found", nickname);
                         nicknamesList.remove(nickname);
+                        if (players.containsKey(nickname)) {
+                            players.remove(nickname);
+                        }
                     }
                 }
             } catch (Exception e) {
