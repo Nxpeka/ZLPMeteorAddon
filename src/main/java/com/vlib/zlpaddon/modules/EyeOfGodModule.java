@@ -24,9 +24,9 @@ public class EyeOfGodModule extends Module {
     private final SettingGroup sgGeneral = this.settings.createGroup("General");
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final HttpClient httpClient = HttpClient.getInstance();
-    private final static String FOUND_MSG_PATTERN = "Player '%s' in %s on: %s";
-    private final static String NOTFOUND_MSG_PATTERN = "Player '%s' not found";
-    private final ConcurrentHashMap<String, MinecraftPlayerModel> players = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, MinecraftPlayerModel> onlinePlayers = new ConcurrentHashMap<>();
+    private final CopyOnWriteArrayList<String> offlinePlayers = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<String> spiedPlayers = new CopyOnWriteArrayList<>();
     private Long lastRequestTime = -1L;
     Semaphore semaphore = new Semaphore(1);
 
@@ -37,6 +37,10 @@ public class EyeOfGodModule extends Module {
     private final Setting<List<String>> nicknamesSg = sgGeneral.add(new StringListSetting.Builder()
         .name("nicknames")
         .description("list of nicknames")
+        .onChanged(resultedList -> {
+            spiedPlayers.removeAll(spiedPlayers.stream().filter(s -> !resultedList.contains(s)).toList());
+            spiedPlayers.addAll(resultedList.stream().filter(s -> !spiedPlayers.contains(s)).toList());
+        })
         .build()
     );
 
@@ -66,7 +70,8 @@ public class EyeOfGodModule extends Module {
     @Override
     public void onDeactivate() {
         semaphore.release();
-        players.clear();
+        onlinePlayers.clear();
+        offlinePlayers.clear();
         ChatUtils.sendMsg(Text.of("EyeOfGod disabled"));
     }
 
@@ -76,8 +81,7 @@ public class EyeOfGodModule extends Module {
         ZlpAddon.LOG.debug("semaphore.acquire");
 
         while (this.isActive()) {
-            List<String> nicknamesList = this.nicknamesSg.get();
-            if (nicknamesList.isEmpty()) {
+            if (spiedPlayers.isEmpty()) {
                 this.toggle();
                 return;
             }
@@ -88,52 +92,85 @@ public class EyeOfGodModule extends Module {
                     ZlpAddon.LOG.debug("Waiting delay");
                     Thread.sleep((long) (delaySg.get() * 1000L));
                 }
-                ZlpAddon.LOG.debug("Send requests");
-                Future<String> worldReq = httpClient.sendGet("https://zlp.onl/map/maps/world/live/players.json");
-                Future<String> netherReq = httpClient.sendGet("https://zlp.onl/map/maps/world_nether/live/players.json");
 
-                ZlpMapPlayersDTO worldZlpMapPlayersDto = new ObjectMapper().readValue(worldReq.get(), ZlpMapPlayersDTO.class);
-                ZlpMapPlayersDTO netherZlpMapPlayersDto = new ObjectMapper().readValue(netherReq.get(), ZlpMapPlayersDTO.class);
+                ZlpMapPlayersDTO overworldPlayers = fetchPlayers("https://zlp.onl/map/maps/world/live/players.json");
+                ZlpMapPlayersDTO netherPlayers = fetchPlayers("https://zlp.onl/map/maps/world_nether/live/players.json");
 
-                for (int i = 0; i < nicknamesList.size(); i++) {
-                    String nickname = nicknamesList.get(i);
-                    Predicate<ZlpMapPlayersDTO.ZlpMapPlayerDTO> equalsName = player -> player.getName().toLowerCase().equals(nickname.toLowerCase());
-                    Predicate<ZlpMapPlayersDTO.ZlpMapPlayerDTO> isInDimension = player -> !player.isForeign();
+                spiedPlayers.forEach(nickname -> processPlayer(nickname, overworldPlayers, netherPlayers));
 
-                    Optional<ZlpMapPlayersDTO.ZlpMapPlayerDTO> worldPlayer = worldZlpMapPlayersDto.getPlayers().stream()
-                        .filter(equalsName)
-                        .filter(isInDimension)
-                        .findFirst();
-                    Optional<ZlpMapPlayersDTO.ZlpMapPlayerDTO> netherPlayer = netherZlpMapPlayersDto.getPlayers().stream()
-                        .filter(equalsName)
-                        .filter(isInDimension)
-                        .findFirst();
-
-                    if (worldPlayer.isPresent()) {
-                        var pl = worldPlayer.get();
-                        players.put(nickname, new MinecraftPlayerModel(pl.getUuid(), pl.getName(), pl.getPosition(), pl.getRotation(), Dimension.Overworld));
-                    } else if (netherPlayer.isPresent()) {
-                        var pl = netherPlayer.get();
-                        players.put(nickname, new MinecraftPlayerModel(pl.getUuid(), pl.getName(), pl.getPosition(), pl.getRotation(), Dimension.Nether));
-                    } else {
-                        ChatUtils.error("Player '%s' not found", nickname);
-                        nicknamesList.remove(nickname);
-                        if (players.containsKey(nickname)) {
-                            players.remove(nickname);
-                        }
-                    }
-                }
             } catch (Exception e) {
-                ZlpAddon.LOG.error(e.getMessage());
-                e.printStackTrace();
+                ZlpAddon.LOG.error("Error spying players", e);
                 this.toggle();
                 throw new RuntimeException(e);
             }
         }
     }
 
-    public ConcurrentHashMap<String, MinecraftPlayerModel> getPlayers() {
-        return players;
+    private void processPlayer(String nickname, ZlpMapPlayersDTO overworldPlayers,ZlpMapPlayersDTO netherPlayers) {
+        if (nickname.trim().isEmpty()) {
+            return;
+        }
+        Predicate<ZlpMapPlayersDTO.ZlpMapPlayerDTO> equalsName = player -> player.getName().equalsIgnoreCase(nickname);
+
+        Optional<ZlpMapPlayersDTO.ZlpMapPlayerDTO> overworldPlayer = overworldPlayers.getPlayers().stream()
+            .filter(equalsName)
+            .filter(player -> !player.isForeign())
+            .findFirst();
+        Optional<ZlpMapPlayersDTO.ZlpMapPlayerDTO> netherPlayer = netherPlayers.getPlayers().stream()
+            .filter(equalsName)
+            .filter(player -> !player.isForeign())
+            .findFirst();
+
+        if (overworldPlayer.isPresent()) {
+            if (offlinePlayers.contains(nickname)) {
+                offlinePlayers.remove(nickname);
+                ChatUtils.info("Player (highlight)%s(default) joined to the server", nickname);
+            }
+            var pl = overworldPlayer.get();
+            onlinePlayers.put(nickname, new MinecraftPlayerModel(
+                pl.getUuid(),
+                pl.getName(),
+                pl.getPosition(),
+                pl.getRotation(),
+                Dimension.Overworld)
+            );
+        }
+        else if (netherPlayer.isPresent()) {
+            if (offlinePlayers.contains(nickname)) {
+                offlinePlayers.remove(nickname);
+                ChatUtils.info("Player (highlight)%s(default) joined to the server", nickname);
+            }
+            var pl = netherPlayer.get();
+            onlinePlayers.put(nickname, new MinecraftPlayerModel(
+                pl.getUuid(),
+                pl.getName(),
+                pl.getPosition(),
+                pl.getRotation(),
+                Dimension.Nether)
+            );
+        }
+        else {
+            if (!offlinePlayers.contains(nickname)) {
+                offlinePlayers.add(nickname);
+                if (onlinePlayers.containsKey(nickname)) {
+                    ChatUtils.warning("Player (highlight)%s(default) logout", nickname);
+                    onlinePlayers.remove(nickname);
+                    return;
+                }
+                ChatUtils.error("Player (highlight)%s(default) not found", nickname);
+            }
+        }
+    }
+
+
+    private ZlpMapPlayersDTO fetchPlayers(String url) throws Exception {
+        ZlpAddon.LOG.debug("Send requests");
+        String json = httpClient.sendGet(url).get(); // Future<String>
+        return new ObjectMapper().readValue(json, ZlpMapPlayersDTO.class);
+    }
+
+    public ConcurrentHashMap<String, MinecraftPlayerModel> getOnlinePlayers() {
+        return onlinePlayers;
     }
 
     private boolean canMakeRequest() {

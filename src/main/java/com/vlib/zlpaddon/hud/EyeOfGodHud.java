@@ -122,7 +122,7 @@ public class EyeOfGodHud extends HudElement {
 
         Modules modules = Modules.get();
         EyeOfGodModule eyeOfGodModule = modules.get(EyeOfGodModule.class);
-        ConcurrentHashMap<String, MinecraftPlayerModel> players = eyeOfGodModule.getPlayers();
+        ConcurrentHashMap<String, MinecraftPlayerModel> players = eyeOfGodModule.getOnlinePlayers();
 
         for(Map.Entry<String, MinecraftPlayerModel> entry : players.entrySet()) {
             ZlpMapPlayersDTO.PositionDTO position = entry.getValue().getPosition();
@@ -152,8 +152,13 @@ public class EyeOfGodHud extends HudElement {
 
         for (Pair<String, MinecraftPlayerModel> pair : pairs) {
             ZlpMapPlayersDTO.PositionDTO position = pair.right().getPosition();
+            String cords;
+            switch (pair.right().getDimension()){
+                case Nether -> cords = String.format("%.0f, %.0f, %.0f", position.getX() / 8D, position.getY(), position.getZ() / 8D);
+                default -> cords = String.format("%.0f, %.0f, %.0f", position.getX(), position.getY(), position.getZ());
+            }
 
-            String text = pair.right().getName() + " " + pair.right().getDimension() + ": " + String.format("%.0f, %.0f, %.0f", position.getX(), position.getY(), position.getZ());
+            String text = pair.right().getName() + " " + pair.right().getDimension() + ": " + cords;
             renderer.text(text, x + alignX(renderer.textWidth(text, shadow.get(), getScale()), alignment.get()), y, color.get(), shadow.get(), getScale());
             y += renderer.textHeight(shadow.get(), getScale());
         }
