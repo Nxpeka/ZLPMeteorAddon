@@ -5,13 +5,14 @@ import com.vlib.zlpaddon.dto.request.ZlpMapPlayersDTO;
 import com.vlib.zlpaddon.http.HttpClient;
 import com.vlib.zlpaddon.models.MinecraftPlayerModel;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import meteordevelopment.meteorclient.settings.DoubleSetting;
-import meteordevelopment.meteorclient.settings.Setting;
-import meteordevelopment.meteorclient.settings.SettingGroup;
-import meteordevelopment.meteorclient.settings.StringListSetting;
+import meteordevelopment.meteorclient.events.world.PlaySoundEvent;
+import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.world.Dimension;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.sound.PositionedSoundInstance;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 
 import java.util.List;
@@ -42,6 +43,13 @@ public class EyeOfGodModule extends Module {
             spiedPlayers.removeAll(spiedPlayers.stream().filter(s -> !resultedList.contains(s)).toList());
             spiedPlayers.addAll(resultedList.stream().filter(s -> !spiedPlayers.contains(s)).toList());
         })
+        .build()
+    );
+
+    private final Setting<Boolean> soundNotification = sgGeneral.add(new BoolSetting.Builder()
+        .name("sound")
+        .description("Sound notification")
+        .defaultValue(true)
         .build()
     );
 
@@ -132,11 +140,11 @@ public class EyeOfGodModule extends Module {
             if (onlinePlayers.containsKey(nickname)) {
                 onlinePlayers.remove(nickname);
                 offlinePlayers.add(nickname);
-                ChatUtils.warning("Player (highlight)%s(default) logout", nickname);
+                this.logoutNotification(nickname);
             }
             else if (!offlinePlayers.contains(nickname) && !onlinePlayers.containsKey(nickname)) {
                 offlinePlayers.add(nickname);
-                ChatUtils.error("Player (highlight)%s(default) not found", nickname);
+                this.notFoundNotification(nickname);
             }
             return;
         }
@@ -145,10 +153,31 @@ public class EyeOfGodModule extends Module {
 
         if (offlinePlayers.contains(minecraftPlayerModel.getName())) {
             offlinePlayers.remove(minecraftPlayerModel.getName());
-            ChatUtils.info("Player (highlight)%s(default) joined to the server", nickname);
+            this.joinNotification(nickname);
         }
 
         onlinePlayers.put(nickname, minecraftPlayerModel);
+    }
+
+    private void logoutNotification(String nickname) {
+        ChatUtils.warning("Player (highlight)%s(default) logout", nickname);
+        if (soundNotification.get()) {
+            MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.master(SoundEvents.ENTITY_ENDERMAN_TELEPORT, 1.0F));
+        }
+    }
+
+    private void notFoundNotification(String nickname) {
+        ChatUtils.error("Player (highlight)%s(default) not found", nickname);
+        if (soundNotification.get()) {
+            MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.master(SoundEvents.BLOCK_NOTE_BLOCK_BASS, 1.0F));
+        }
+    }
+
+    private void joinNotification(String nickname) {
+        ChatUtils.info("Player (highlight)%s(default) joined to the server", nickname);
+        if (soundNotification.get()){
+            MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.master(SoundEvents.ENTITY_PLAYER_LEVELUP, 1.0F));
+        }
     }
 
     private ZlpMapPlayersDTO fetchPlayers(String url) throws Exception {
