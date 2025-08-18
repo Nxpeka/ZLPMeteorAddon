@@ -126,7 +126,9 @@ public class EyeOfGodHud extends HudElement {
 
         for(Map.Entry<String, MinecraftPlayerModel> entry : players.entrySet()) {
             ZlpMapPlayersDTO.PositionDTO position = entry.getValue().getPosition();
-            String text = entry.getValue().getName() + ": " + String.format("%.0f, %.0f, %.0f", position.getX(), position.getY(), position.getZ());
+            String cords = String.format("%.0f, %.0f, %.0f", position.getX(), position.getY(), position.getZ());
+
+            String text = entry.getValue().getName() + " " + entry.getValue().getDimension() + ": " + cords;
             pairs.add(new ObjectObjectImmutablePair<>(entry.getKey(), entry.getValue()));
             width = Math.max(width, renderer.textWidth(text, shadow.get(), getScale()));
             height += renderer.textHeight(shadow.get(), getScale());
