@@ -2,12 +2,11 @@ package com.vlib.zlpaddon.modules;
 
 import com.vlib.zlpaddon.ZlpAddon;
 import com.vlib.zlpaddon.dto.request.ZlpMapPlayersDTO;
-import com.vlib.zlpaddon.http.HttpClient;
 import com.vlib.zlpaddon.models.MinecraftPlayerModel;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import meteordevelopment.meteorclient.events.world.PlaySoundEvent;
+import lombok.Getter;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.network.Http;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.world.Dimension;
 import net.minecraft.client.MinecraftClient;
@@ -24,14 +23,12 @@ public class EyeOfGodModule extends Module {
 
     private final SettingGroup sgGeneral = this.settings.createGroup("General");
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(2);
-    private final HttpClient httpClient = HttpClient.getInstance();
+    @Getter
     private final ConcurrentHashMap<String, MinecraftPlayerModel> onlinePlayers = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<String> offlinePlayers = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<String> spiedPlayers = new CopyOnWriteArrayList<>();
     private CopyOnWriteArrayList<MinecraftPlayerModel> playersList = new CopyOnWriteArrayList<>();
     private ScheduledFuture<?> spyingTask;
-    Semaphore semaphore = new Semaphore(1);
-
 
     public EyeOfGodModule() {
         super(ZlpAddon.CATEGORY, "eyeofgod", "module which spying of players");
@@ -180,13 +177,8 @@ public class EyeOfGodModule extends Module {
         }
     }
 
-    private ZlpMapPlayersDTO fetchPlayers(String url) throws Exception {
+    private ZlpMapPlayersDTO fetchPlayers(String url){
         ZlpAddon.LOG.debug("Send requests");
-        String json = httpClient.sendGet(url).get(); // Future<String>
-        return new ObjectMapper().readValue(json, ZlpMapPlayersDTO.class);
-    }
-
-    public ConcurrentHashMap<String, MinecraftPlayerModel> getOnlinePlayers() {
-        return onlinePlayers;
+        return Http.get(url).sendJson(ZlpMapPlayersDTO.class);
     }
 }
