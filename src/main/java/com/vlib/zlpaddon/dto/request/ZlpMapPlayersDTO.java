@@ -4,7 +4,6 @@ package com.vlib.zlpaddon.dto.request;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Value;
-import meteordevelopment.meteorclient.utils.world.Dimension;
 
 import java.util.List;
 
