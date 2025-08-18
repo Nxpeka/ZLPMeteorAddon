@@ -4,6 +4,7 @@ import com.vlib.zlpaddon.ZlpAddon;
 import com.vlib.zlpaddon.dto.request.ZlpMapPlayersDTO;
 import com.vlib.zlpaddon.models.MinecraftPlayerModel;
 import lombok.Getter;
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.network.Http;
@@ -12,7 +13,11 @@ import meteordevelopment.meteorclient.utils.world.Dimension;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.sound.SoundEvents;
+import net.minecraft.text.MutableText;
+import net.minecraft.text.Style;
 import net.minecraft.text.Text;
+import net.minecraft.text.TextColor;
+import net.minecraft.util.Formatting;
 
 import java.util.HashSet;
 import java.util.List;
@@ -20,6 +25,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class EyeOfGodModule extends Module {
 
@@ -31,9 +37,16 @@ public class EyeOfGodModule extends Module {
     private final Set<String> spiedPlayers = ConcurrentHashMap.newKeySet();
     private volatile List<MinecraftPlayerModel> playersList = List.of();
     private ScheduledFuture<?> spyingTask;
+    private final Supplier<Text> MODULE_PREFIX = () -> Text.empty()
+        .setStyle(Style.EMPTY.withFormatting(Formatting.GRAY))
+        .append("[")
+        .append(Text.literal("EyeOfGod")
+            .setStyle(Style.EMPTY.withColor(Formatting.DARK_RED)))
+        .append("] ");
 
     public EyeOfGodModule() {
         super(ZlpAddon.CATEGORY, "eyeofgod", "module which spying of players");
+        ChatUtils.registerCustomPrefix(EyeOfGodModule.class.getPackageName(), MODULE_PREFIX);
     }
     private final Setting<List<String>> nicknamesSg = sgGeneral.add(new StringListSetting.Builder()
         .name("nicknames")
@@ -60,9 +73,9 @@ public class EyeOfGodModule extends Module {
 
     private final Setting<Double> delaySg = sgGeneral.add(new DoubleSetting.Builder()
         .name("delay")
-        .description("delay in seconds")
+        .description("delay in seconds below 0.5 may cause exception т-т")
         .max(60)
-        .min(0.25)
+        .min(0.5)
         .defaultValue(1)
         .build()
     );
