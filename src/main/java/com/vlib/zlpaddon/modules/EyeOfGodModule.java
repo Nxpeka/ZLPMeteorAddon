@@ -57,7 +57,7 @@ public class EyeOfGodModule extends Module {
         .name("delay")
         .description("delay in seconds")
         .max(60)
-        .min(1)
+        .min(0.25)
         .defaultValue(1)
         .build()
     );
