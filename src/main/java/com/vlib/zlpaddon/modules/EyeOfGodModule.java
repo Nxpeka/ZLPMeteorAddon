@@ -14,8 +14,10 @@ import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.function.Predicate;
 
@@ -25,9 +27,9 @@ public class EyeOfGodModule extends Module {
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(2);
     @Getter
     private final ConcurrentHashMap<String, MinecraftPlayerModel> onlinePlayers = new ConcurrentHashMap<>();
-    private final CopyOnWriteArrayList<String> offlinePlayers = new CopyOnWriteArrayList<>();
-    private final CopyOnWriteArrayList<String> spiedPlayers = new CopyOnWriteArrayList<>();
-    private CopyOnWriteArrayList<MinecraftPlayerModel> playersList = new CopyOnWriteArrayList<>();
+    private final Set<String> offlinePlayers = ConcurrentHashMap.newKeySet();
+    private final Set<String> spiedPlayers = ConcurrentHashMap.newKeySet();
+    private volatile List<MinecraftPlayerModel> playersList = List.of();
     private ScheduledFuture<?> spyingTask;
 
     public EyeOfGodModule() {
@@ -37,8 +39,14 @@ public class EyeOfGodModule extends Module {
         .name("nicknames")
         .description("list of nicknames")
         .onChanged(resultedList -> {
-            spiedPlayers.removeAll(spiedPlayers.stream().filter(s -> !resultedList.contains(s)).toList());
-            spiedPlayers.addAll(resultedList.stream().filter(s -> !spiedPlayers.contains(s)).toList());
+            Set<String> newSet = new HashSet<>(resultedList);
+
+            spiedPlayers.removeIf(nick -> !newSet.contains(nick));
+
+            spiedPlayers.addAll(newSet);
+
+            onlinePlayers.keySet().removeIf(nick -> !newSet.contains(nick));
+            offlinePlayers.removeIf(nick -> !newSet.contains(nick));
         })
         .build()
     );
@@ -98,7 +106,7 @@ public class EyeOfGodModule extends Module {
                     dto.isForeign() ? Dimension.Nether : Dimension.Overworld))
                 .toList();
 
-            this.playersList = new CopyOnWriteArrayList<>(tmpPlayersList);
+            this.playersList = tmpPlayersList;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
