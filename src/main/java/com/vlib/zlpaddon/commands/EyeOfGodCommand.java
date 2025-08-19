@@ -3,6 +3,7 @@ package com.vlib.zlpaddon.commands;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.vlib.zlpaddon.dto.request.ZlpMapPlayersDTO;
+import com.vlib.zlpaddon.exceptions.EmptyListException;
 import com.vlib.zlpaddon.exceptions.FetchException;
 import com.vlib.zlpaddon.exceptions.PlayerAlreadyInListException;
 import com.vlib.zlpaddon.exceptions.PlayerNotFoundException;
@@ -93,6 +94,20 @@ public class EyeOfGodCommand extends Command {
                         return SINGLE_SUCCESS;
                     })
                 )
+            )
+        );
+
+        builder.then(literal("spy")
+            .then(literal("clear")
+                .executes(context -> {
+                    try {
+                        eyeOfGodModule.clearSpyingPlayers();
+                        info("Cleared spying players");
+                    } catch (EmptyListException e) {
+                        error("No players in list");
+                    }
+                    return SINGLE_SUCCESS;
+                })
             )
         );
     }

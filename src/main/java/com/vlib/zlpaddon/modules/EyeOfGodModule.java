@@ -2,6 +2,7 @@ package com.vlib.zlpaddon.modules;
 
 import com.vlib.zlpaddon.ZlpAddon;
 import com.vlib.zlpaddon.dto.request.ZlpMapPlayersDTO;
+import com.vlib.zlpaddon.exceptions.EmptyListException;
 import com.vlib.zlpaddon.exceptions.FetchException;
 import com.vlib.zlpaddon.exceptions.PlayerAlreadyInListException;
 import com.vlib.zlpaddon.exceptions.PlayerNotFoundException;
@@ -251,6 +252,14 @@ public class EyeOfGodModule extends Module {
             return;
         }
         throw new PlayerNotFoundException("Nickname not found in list");
+    }
+
+    public void clearSpyingPlayers() throws EmptyListException {
+        if (nicknamesSg.get().isEmpty()) {
+            throw new EmptyListException("list already empty");
+        }
+        nicknamesSg.get().clear();
+        nicknamesSg.onChanged();
     }
 
     public ZlpMapPlayersDTO.PositionDTO locatePlayer(String nickname) throws PlayerNotFoundException, FetchException {
