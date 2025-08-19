@@ -6,16 +6,11 @@ import com.vlib.zlpaddon.exceptions.EmptyListException;
 import com.vlib.zlpaddon.exceptions.FetchException;
 import com.vlib.zlpaddon.exceptions.PlayerAlreadyInListException;
 import com.vlib.zlpaddon.exceptions.PlayerNotFoundException;
-import com.vlib.zlpaddon.hud.EyeOfGodHud;
 import com.vlib.zlpaddon.models.MinecraftPlayerModel;
 import com.vlib.zlpaddon.services.EyeOfGodFactory;
 import lombok.Getter;
 import meteordevelopment.meteorclient.settings.*;
-import meteordevelopment.meteorclient.systems.hud.Hud;
-import meteordevelopment.meteorclient.systems.hud.HudElement;
-import meteordevelopment.meteorclient.systems.hud.HudElementInfo;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.utils.network.Http;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.world.Dimension;
@@ -126,7 +121,7 @@ public class EyeOfGodModule extends Module {
         }
         try {
             ZlpMapPlayersDTO overworldPlayers = fetchPlayers("https://zlp.onl/map/maps/world/live/players.json");
-            ZlpMapPlayersDTO netherPlayers = fetchPlayers("https://zlp.onl/map/maps/world/live/players.json");
+            ZlpMapPlayersDTO netherPlayers = fetchPlayers("https://zlp.onl/map/maps/world_nether/live/players.json");
 
             if(this.isActive()){
                 if (overworldPlayers == null || netherPlayers == null) {
@@ -136,14 +131,16 @@ public class EyeOfGodModule extends Module {
                 return;
             }
 
-            Map<String, MinecraftPlayerModel> endPlayers = Stream.concat(
-                overworldPlayers.getPlayers().stream().filter(ZlpMapPlayersDTO.ZlpMapPlayerDTO::isForeign),
-                netherPlayers.getPlayers().stream().filter(ZlpMapPlayersDTO.ZlpMapPlayerDTO::isForeign)
-            ).collect(Collectors.toMap(
-                ZlpMapPlayersDTO.ZlpMapPlayerDTO::getName,
-                dto -> toModel(dto, Dimension.End),
-                (a, b) -> a)
-            );
+            List<ZlpMapPlayersDTO.ZlpMapPlayerDTO> foreignForOver = overworldPlayers.getPlayers().stream().filter(ZlpMapPlayersDTO.ZlpMapPlayerDTO::isForeign).toList();
+            List<ZlpMapPlayersDTO.ZlpMapPlayerDTO> foreignForNether = netherPlayers.getPlayers().stream().filter(ZlpMapPlayersDTO.ZlpMapPlayerDTO::isForeign).toList();
+
+            Map<String, MinecraftPlayerModel> endPlayers = overworldPlayers.getPlayers().stream()
+                .filter(dto -> foreignForOver.contains(dto) && foreignForNether.contains(dto))
+                .collect(Collectors.toMap(
+                    ZlpMapPlayersDTO.ZlpMapPlayerDTO::getName,
+                    dto -> toModel(dto, Dimension.End),
+                    (a, b) -> a)
+                );
 
             Stream<MinecraftPlayerModel> otherPlayers = overworldPlayers.getPlayers().stream()
                 .filter(dto -> !endPlayers.containsKey(dto.getName()))
@@ -286,8 +283,10 @@ public class EyeOfGodModule extends Module {
         Dimension dimension = getCurrentDimension();
 
         List<MinecraftPlayerModel> list = playersList.stream()
+            .filter(player -> !spiedPlayers.contains(player.getName()))
             .filter(player -> player.getDimension().equals(dimension))
             .filter(player -> calculateDistance(player.getPosition(), pos) <= radius)
+            .sorted(Comparator.comparingDouble(p -> calculateDistance(p.getPosition(), pos)))
             .limit(10)
             .toList();
 
