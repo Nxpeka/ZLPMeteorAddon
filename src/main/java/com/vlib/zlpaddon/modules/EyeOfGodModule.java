@@ -20,10 +20,13 @@ import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.world.Dimension;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.sound.PositionedSoundInstance;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.dimension.DimensionType;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -264,6 +267,55 @@ public class EyeOfGodModule extends Module {
             .orElseThrow(() -> new PlayerNotFoundException("Player not found"))
             .getPosition();
     }
+
+    public List<MinecraftPlayerModel> spyNearPlayer(Double radius) throws PlayerNotFoundException {
+        if (!this.isActive()){
+            this.toggle();
+        }
+
+        Vec3d pos = mc.player.getPos();
+        Dimension dimension = getCurrentDimension();
+
+        List<MinecraftPlayerModel> list = playersList.stream()
+            .filter(player -> player.getDimension().equals(dimension))
+            .filter(player -> calculateDistance(player.getPosition(), pos) <= radius)
+            .limit(10)
+            .toList();
+
+        list.forEach(player -> {
+            try {
+                addPlayerToSpying(player.getName());
+            } catch (PlayerAlreadyInListException ignored) {}
+        });
+
+        return list;
+    }
+
+    private Dimension getCurrentDimension() {
+        RegistryEntry<DimensionType> dimensionEntry = mc.world.getDimensionEntry();
+        if (dimensionEntry == null) {
+            throw new IllegalArgumentException("Unknown dimension");
+        }
+
+        switch (mc.world.getDimensionEntry().getIdAsString()){
+            case "minecraft:the_nether" -> {
+                return Dimension.Nether;
+            }
+            case "minecraft:overworld" -> {
+                return Dimension.Overworld;
+            }
+            case "minecraft:the_end" -> {
+                return Dimension.End;
+            }
+            default -> throw new IllegalArgumentException("Unknown dimension");
+        }
+    }
+
+    private Double calculateDistance(ZlpMapPlayersDTO.PositionDTO victim, Vec3d pos) {
+        Vec3d victimVec3d = new Vec3d(victim.getX(), victim.getY(), victim.getZ());
+        return pos.distanceTo(victimVec3d);
+    }
+
 
     private MinecraftPlayerModel toModel(ZlpMapPlayersDTO.ZlpMapPlayerDTO dto, Dimension dimension) {
         return new MinecraftPlayerModel(
