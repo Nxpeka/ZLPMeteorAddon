@@ -3,6 +3,7 @@ package com.vlib.zlpaddon.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.EqualsAndHashCode;
 import lombok.Value;
 
 import java.util.List;
@@ -17,6 +18,7 @@ public class ZlpMapPlayersDTO {
     }
 
     @Value
+    @EqualsAndHashCode(callSuper=false, exclude = {"foreign", "position", "rotation"} )
     public static class ZlpMapPlayerDTO {
         String uuid;
         String name;
@@ -79,3 +81,5 @@ public class ZlpMapPlayersDTO {
         }
     }
 }
+
+

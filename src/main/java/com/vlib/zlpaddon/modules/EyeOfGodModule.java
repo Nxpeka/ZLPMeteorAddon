@@ -25,13 +25,12 @@ import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class EyeOfGodModule extends Module {
 
@@ -123,22 +122,30 @@ public class EyeOfGodModule extends Module {
         }
         try {
             ZlpMapPlayersDTO overworldPlayers = fetchPlayers("https://zlp.onl/map/maps/world/live/players.json");
+            ZlpMapPlayersDTO netherPlayers = fetchPlayers("https://zlp.onl/map/maps/world/live/players.json");
+
             if(this.isActive()){
-                if (overworldPlayers == null){
+                if (overworldPlayers == null || netherPlayers == null) {
                     throw new FetchException("Could not fetch overworld players");
                 }
             } else {
                 return;
             }
-            List<MinecraftPlayerModel> tmpPlayersList = overworldPlayers.getPlayers().stream()
-                .map(dto -> new MinecraftPlayerModel(dto.getUuid(),
-                    dto.getName(),
-                    dto.getPosition(),
-                    dto.getRotation(),
-                    dto.isForeign() ? Dimension.Nether : Dimension.Overworld))
-                .toList();
 
-            this.playersList = tmpPlayersList;
+            Map<String, MinecraftPlayerModel> endPlayers = Stream.concat(
+                overworldPlayers.getPlayers().stream().filter(ZlpMapPlayersDTO.ZlpMapPlayerDTO::isForeign),
+                netherPlayers.getPlayers().stream().filter(ZlpMapPlayersDTO.ZlpMapPlayerDTO::isForeign)
+            ).collect(Collectors.toMap(
+                ZlpMapPlayersDTO.ZlpMapPlayerDTO::getName,
+                dto -> toModel(dto, Dimension.End),
+                (a, b) -> a)
+            );
+
+            Stream<MinecraftPlayerModel> otherPlayers = overworldPlayers.getPlayers().stream()
+                .filter(dto -> !endPlayers.containsKey(dto.getName()))
+                .map(dto -> toModel(dto, dto.isForeign() ? Dimension.Nether : Dimension.Overworld));
+
+            this.playersList = Stream.concat(otherPlayers, endPlayers.values().stream()).toList();
         } catch (Exception e) {
             ZlpAddon.LOG.error("Error in collecting players", e);
         }
@@ -256,5 +263,15 @@ public class EyeOfGodModule extends Module {
             .findFirst()
             .orElseThrow(() -> new PlayerNotFoundException("Player not found"))
             .getPosition();
+    }
+
+    private MinecraftPlayerModel toModel(ZlpMapPlayersDTO.ZlpMapPlayerDTO dto, Dimension dimension) {
+        return new MinecraftPlayerModel(
+            dto.getUuid(),
+            dto.getName(),
+            dto.getPosition(),
+            dto.getRotation(),
+            dimension
+        );
     }
 }
