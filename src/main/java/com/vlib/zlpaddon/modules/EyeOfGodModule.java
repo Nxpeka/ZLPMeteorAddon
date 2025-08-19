@@ -2,9 +2,10 @@ package com.vlib.zlpaddon.modules;
 
 import com.vlib.zlpaddon.ZlpAddon;
 import com.vlib.zlpaddon.dto.request.ZlpMapPlayersDTO;
+import com.vlib.zlpaddon.exceptions.PlayerAlreadyInListException;
+import com.vlib.zlpaddon.exceptions.PlayerNotFoundException;
 import com.vlib.zlpaddon.models.MinecraftPlayerModel;
 import lombok.Getter;
-import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.network.Http;
@@ -13,10 +14,8 @@ import meteordevelopment.meteorclient.utils.world.Dimension;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
 import net.minecraft.util.Formatting;
 
 import java.util.HashSet;
@@ -126,8 +125,6 @@ public class EyeOfGodModule extends Module {
     }
 
     private void spyingPlayers() {
-        ZlpAddon.LOG.debug("semaphore.acquire");
-
         if (spiedPlayers.isEmpty()) {
             this.toggle();
             return;
@@ -201,5 +198,42 @@ public class EyeOfGodModule extends Module {
     private ZlpMapPlayersDTO fetchPlayers(String url){
         ZlpAddon.LOG.debug("Send requests");
         return Http.get(url).sendJson(ZlpMapPlayersDTO.class);
+    }
+
+    public void addPlayerToSpying(String nickname) throws PlayerAlreadyInListException {
+        if (nickname == null || nickname.trim().isEmpty()) {
+            throw new IllegalArgumentException("Nickname cannot be null or empty");
+        }
+        if (!nicknamesSg.get().contains(nickname)) {
+            nicknamesSg.get().add(nickname);
+            return;
+        }
+        throw new PlayerAlreadyInListException("Player with this nickname already in list");
+    }
+
+    public void removePlayerFromSpying(String nickname) throws PlayerNotFoundException {
+        if (nickname == null || nickname.trim().isEmpty()) {
+            throw new IllegalArgumentException("Nickname cannot be null or empty");
+        }
+        if (nicknamesSg.get().contains(nickname)) {
+            nicknamesSg.get().remove(nickname);
+            return;
+        }
+        throw new PlayerNotFoundException("Nickname not found in list");
+    }
+
+    public ZlpMapPlayersDTO.PositionDTO locatePlayer(String nickname) throws PlayerNotFoundException {
+        if (nickname == null || nickname.trim().isEmpty()) {
+            throw new IllegalArgumentException("Nickname cannot be null or empty");
+        }
+        if (!this.isActive()){
+            this.collectPlayers();
+        }
+
+        return playersList.stream()
+            .filter(player -> player.getName().equalsIgnoreCase(nickname))
+            .findFirst()
+            .orElseThrow(() -> new PlayerNotFoundException("Player not found"))
+            .getPosition();
     }
 }

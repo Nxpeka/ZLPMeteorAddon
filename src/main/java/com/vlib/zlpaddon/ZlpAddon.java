@@ -1,14 +1,18 @@
 package com.vlib.zlpaddon;
 
+import com.mojang.brigadier.Command;
+import com.vlib.zlpaddon.commands.EyeOfGodCommand;
 import com.vlib.zlpaddon.hud.EyeOfGodHud;
 import com.vlib.zlpaddon.modules.EyeOfGodModule;
 import com.mojang.logging.LogUtils;
 import meteordevelopment.meteorclient.addons.GithubRepo;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
+import meteordevelopment.meteorclient.commands.Commands;
 import meteordevelopment.meteorclient.systems.hud.Hud;
 import meteordevelopment.meteorclient.systems.hud.HudGroup;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import net.minecraft.server.command.CommandManager;
 import org.slf4j.Logger;
 import org.slf4j.event.Level;
 
@@ -25,6 +29,7 @@ public class ZlpAddon extends MeteorAddon {
         LOG.info("Initializing Meteor Addon Template");
 
         Modules.get().add(new EyeOfGodModule());
+        Commands.add(new EyeOfGodCommand());
 
         // HUD
         Hud.get().register(EyeOfGodHud.INFO);
