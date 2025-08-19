@@ -4,33 +4,45 @@ import com.vlib.zlpaddon.ZlpAddon;
 import com.vlib.zlpaddon.dto.request.ZlpMapPlayersDTO;
 import com.vlib.zlpaddon.models.MinecraftPlayerModel;
 import com.vlib.zlpaddon.modules.EyeOfGodModule;
+import com.vlib.zlpaddon.services.EyeOfGodFactory;
 import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.objects.ObjectObjectImmutablePair;
+import lombok.Getter;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.hud.*;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
+import net.minecraft.text.Style;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.function.Supplier;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 
 public class EyeOfGodHud extends HudElement {
 
-    public static final HudElementInfo<EyeOfGodHud> INFO = new HudElementInfo<>(ZlpAddon.HUD_GROUP, "EyeOfGodHud", "HUD for EyeOfGodModel.", EyeOfGodHud::new);
-
-
+    public static final HudElementInfo<EyeOfGodHud> INFO = new HudElementInfo<>(ZlpAddon.HUD_GROUP, "EyeOfGodHud", "HUD for EyeOfGodModel.", () -> EyeOfGodFactory.getINSTANCE().getEyeOfGodHud());
     private final List<Pair<String, MinecraftPlayerModel>> pairs = new ArrayList<>();
+    private final Supplier<Text> MODULE_PREFIX = () -> Text.empty()
+        .setStyle(Style.EMPTY.withFormatting(Formatting.GRAY))
+        .append("[")
+        .append(Text.literal("EyeOfGodHud")
+            .setStyle(Style.EMPTY.withColor(Formatting.DARK_RED)))
+        .append("] ");
 
     private final SettingGroup sgGeneral = this.settings.getDefaultGroup();
 
     private final Setting<SettingColor> color = sgGeneral.add(new ColorSetting.Builder()
         .name("flat-color")
         .description("Color for flat color mode.")
-        .defaultValue(new SettingColor(225, 255, 255))
+        .defaultValue(new SettingColor(255, 255, 255))
         .build()
     );
 
@@ -90,8 +102,8 @@ public class EyeOfGodHud extends HudElement {
 
     public EyeOfGodHud() {
         super(INFO);
+        ChatUtils.registerCustomPrefix(EyeOfGodHud.class.getPackageName(), MODULE_PREFIX);
     }
-
     @Override
     public void setSize(double width, double height) {
         super.setSize(width + border.get() * 2, height + border.get() * 2);
@@ -120,9 +132,7 @@ public class EyeOfGodHud extends HudElement {
 
         pairs.clear();
 
-        Modules modules = Modules.get();
-        EyeOfGodModule eyeOfGodModule = modules.get(EyeOfGodModule.class);
-        ConcurrentHashMap<String, MinecraftPlayerModel> players = eyeOfGodModule.getOnlinePlayers();
+        ConcurrentHashMap<String, MinecraftPlayerModel> players = EyeOfGodFactory.getINSTANCE().getEyeOfGodModule().getOnlinePlayers();
 
         for(Map.Entry<String, MinecraftPlayerModel> entry : players.entrySet()) {
             ZlpMapPlayersDTO.PositionDTO position = entry.getValue().getPosition();
@@ -137,8 +147,26 @@ public class EyeOfGodHud extends HudElement {
         setSize(width, height);
     }
 
+    private void disable(){
+        try {
+            Field active = this.getClass().getSuperclass().getDeclaredField("active");
+            active.setAccessible(true);
+            if (active.getBoolean(this)) {
+                active.setBoolean(this, false);
+            }
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            ChatUtils.error("Can't disable the hud element.");
+        }
+    }
+
     @Override
     public void render(HudRenderer renderer) {
+        if (this.isActive() && !EyeOfGodFactory.getINSTANCE().getEyeOfGodModule().isActive() && !isInEditor()) {
+            disable();
+            ChatUtils.warning("EyeOfGod module is not active.");
+            return;
+        }
+
         double x = this.x + border.get();
         double y = this.y + border.get();
 

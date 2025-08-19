@@ -2,6 +2,7 @@ package com.vlib.zlpaddon.commands;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.vlib.zlpaddon.dto.request.ZlpMapPlayersDTO;
+import com.vlib.zlpaddon.exceptions.FetchException;
 import com.vlib.zlpaddon.exceptions.PlayerAlreadyInListException;
 import com.vlib.zlpaddon.exceptions.PlayerNotFoundException;
 import com.vlib.zlpaddon.modules.EyeOfGodModule;
@@ -33,6 +34,8 @@ public class EyeOfGodCommand extends Command {
                         );
                     } catch (PlayerNotFoundException e) {
                         error("Failed to find player " + nickname);
+                    } catch (FetchException e) {
+                        error("Failed to fetch players positions т-т");
                     }
                     return SINGLE_SUCCESS;
                 })

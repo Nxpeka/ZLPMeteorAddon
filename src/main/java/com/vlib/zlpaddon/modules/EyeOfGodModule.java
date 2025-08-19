@@ -2,12 +2,19 @@ package com.vlib.zlpaddon.modules;
 
 import com.vlib.zlpaddon.ZlpAddon;
 import com.vlib.zlpaddon.dto.request.ZlpMapPlayersDTO;
+import com.vlib.zlpaddon.exceptions.FetchException;
 import com.vlib.zlpaddon.exceptions.PlayerAlreadyInListException;
 import com.vlib.zlpaddon.exceptions.PlayerNotFoundException;
+import com.vlib.zlpaddon.hud.EyeOfGodHud;
 import com.vlib.zlpaddon.models.MinecraftPlayerModel;
+import com.vlib.zlpaddon.services.EyeOfGodFactory;
 import lombok.Getter;
 import meteordevelopment.meteorclient.settings.*;
+import meteordevelopment.meteorclient.systems.hud.Hud;
+import meteordevelopment.meteorclient.systems.hud.HudElement;
+import meteordevelopment.meteorclient.systems.hud.HudElementInfo;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.utils.network.Http;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.world.Dimension;
@@ -83,11 +90,15 @@ public class EyeOfGodModule extends Module {
     @Override
     public void onActivate() {
         ChatUtils.sendMsg(Text.of("Trying to spy players"));
+        if (!EyeOfGodFactory.getINSTANCE().getEyeOfGodHud().isActive()){
+            EyeOfGodFactory.getINSTANCE().getEyeOfGodHud().toggle();
+        }
         spyingTask = executor.scheduleWithFixedDelay(() -> {
             try {
                 collectPlayers();
                 spyingPlayers();
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 ZlpAddon.LOG.error("Error in spying task", e);
                 this.toggle();
             }
@@ -96,6 +107,9 @@ public class EyeOfGodModule extends Module {
 
     @Override
     public void onDeactivate() {
+        if (EyeOfGodFactory.getINSTANCE().getEyeOfGodHud().isActive()){
+            EyeOfGodFactory.getINSTANCE().getEyeOfGodHud().toggle();
+        }
         if (spyingTask != null && !spyingTask.isCancelled()) {
             spyingTask.cancel(true);
         }
@@ -103,13 +117,19 @@ public class EyeOfGodModule extends Module {
         ChatUtils.sendMsg(Text.of("EyeOfGod disabled"));
     }
 
-    private void collectPlayers() {
+    private void collectPlayers() throws FetchException{
         if (!this.isActive()){
             return;
         }
         try {
             ZlpMapPlayersDTO overworldPlayers = fetchPlayers("https://zlp.onl/map/maps/world/live/players.json");
-
+            if(this.isActive()){
+                if (overworldPlayers == null){
+                    throw new FetchException("Could not fetch overworld players");
+                }
+            } else {
+                return;
+            }
             List<MinecraftPlayerModel> tmpPlayersList = overworldPlayers.getPlayers().stream()
                 .map(dto -> new MinecraftPlayerModel(dto.getUuid(),
                     dto.getName(),
@@ -120,7 +140,7 @@ public class EyeOfGodModule extends Module {
 
             this.playersList = tmpPlayersList;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            ZlpAddon.LOG.error("Error in collecting players", e);
         }
     }
 
@@ -134,7 +154,6 @@ public class EyeOfGodModule extends Module {
         } catch (Exception e) {
             ZlpAddon.LOG.error("Error spying players", e);
             this.toggle();
-            throw new RuntimeException(e);
         }
     }
 
@@ -206,6 +225,7 @@ public class EyeOfGodModule extends Module {
         }
         if (!nicknamesSg.get().contains(nickname)) {
             nicknamesSg.get().add(nickname);
+            nicknamesSg.onChanged();
             return;
         }
         throw new PlayerAlreadyInListException("Player with this nickname already in list");
@@ -217,12 +237,13 @@ public class EyeOfGodModule extends Module {
         }
         if (nicknamesSg.get().contains(nickname)) {
             nicknamesSg.get().remove(nickname);
+            nicknamesSg.onChanged();
             return;
         }
         throw new PlayerNotFoundException("Nickname not found in list");
     }
 
-    public ZlpMapPlayersDTO.PositionDTO locatePlayer(String nickname) throws PlayerNotFoundException {
+    public ZlpMapPlayersDTO.PositionDTO locatePlayer(String nickname) throws PlayerNotFoundException, FetchException {
         if (nickname == null || nickname.trim().isEmpty()) {
             throw new IllegalArgumentException("Nickname cannot be null or empty");
         }
