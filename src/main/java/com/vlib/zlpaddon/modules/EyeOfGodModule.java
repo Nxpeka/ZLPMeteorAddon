@@ -180,9 +180,10 @@ public class EyeOfGodModule extends Module {
 
         if (!first.isPresent()) {
             if (onlinePlayers.containsKey(nickname)) {
+                MinecraftPlayerModel playerModel = onlinePlayers.get(nickname);
                 onlinePlayers.remove(nickname);
                 offlinePlayers.add(nickname);
-                this.logoutNotification(nickname);
+                this.logoutNotification(playerModel);
             }
             else if (!offlinePlayers.contains(nickname) && !onlinePlayers.containsKey(nickname)) {
                 offlinePlayers.add(nickname);
@@ -195,14 +196,16 @@ public class EyeOfGodModule extends Module {
 
         if (offlinePlayers.contains(minecraftPlayerModel.getName())) {
             offlinePlayers.remove(minecraftPlayerModel.getName());
-            this.joinNotification(nickname);
+            this.joinNotification(minecraftPlayerModel);
         }
 
         onlinePlayers.put(nickname, minecraftPlayerModel);
     }
 
-    private void logoutNotification(String nickname) {
-        ChatUtils.warning("Player (highlight)%s(default) logout", nickname);
+    private void logoutNotification(MinecraftPlayerModel player) {
+        ChatUtils.warning( "Player (highlight)%s(default) logout on %s",
+            player.getName(),
+            String.format("(highlight)%.0f, %.0f, %.0f(default)", player.getPosition().getX(), player.getPosition().getY(), player.getPosition().getZ()));
         if (soundNotification.get()) {
             MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.master(SoundEvents.ENTITY_ENDERMAN_TELEPORT, 1.0F));
         }
@@ -215,8 +218,10 @@ public class EyeOfGodModule extends Module {
         }
     }
 
-    private void joinNotification(String nickname) {
-        ChatUtils.info("Player (highlight)%s(default) joined to the server", nickname);
+    private void joinNotification(MinecraftPlayerModel player) {
+        ChatUtils.info("Player (highlight)%s(default) joined to the server on %s",
+            player.getName(),
+            String.format("(highlight)%.0f, %.0f, %.0f(default)", player.getPosition().getX(), player.getPosition().getY(), player.getPosition().getZ()));
         if (soundNotification.get()){
             MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.master(SoundEvents.ENTITY_PLAYER_LEVELUP, 1.0F));
         }
@@ -259,7 +264,7 @@ public class EyeOfGodModule extends Module {
         nicknamesSg.onChanged();
     }
 
-    public ZlpMapPlayersDTO.PositionDTO locatePlayer(String nickname) throws PlayerNotFoundException, FetchException {
+    public MinecraftPlayerModel locatePlayer(String nickname) throws PlayerNotFoundException, FetchException {
         if (nickname == null || nickname.trim().isEmpty()) {
             throw new IllegalArgumentException("Nickname cannot be null or empty");
         }
@@ -270,8 +275,7 @@ public class EyeOfGodModule extends Module {
         return playersList.stream()
             .filter(player -> player.getName().equalsIgnoreCase(nickname))
             .findFirst()
-            .orElseThrow(() -> new PlayerNotFoundException("Player not found"))
-            .getPosition();
+            .orElseThrow(() -> new PlayerNotFoundException("Player not found"));
     }
 
     public List<MinecraftPlayerModel> spyNearPlayer(Double radius) throws PlayerNotFoundException {
@@ -281,8 +285,12 @@ public class EyeOfGodModule extends Module {
 
         Vec3d pos = mc.player.getPos();
         Dimension dimension = getCurrentDimension();
+        String selfNickname = mc.player.getDisplayName().getString();
+        ChatUtils.info("SelfNick: %s", selfNickname);
+
 
         List<MinecraftPlayerModel> list = playersList.stream()
+            .filter(player -> !player.getName().equalsIgnoreCase(selfNickname))
             .filter(player -> !spiedPlayers.contains(player.getName()))
             .filter(player -> player.getDimension().equals(dimension))
             .filter(player -> calculateDistance(player.getPosition(), pos) <= radius)
@@ -290,13 +298,17 @@ public class EyeOfGodModule extends Module {
             .limit(10)
             .toList();
 
+        addAllToSpiedList(list);
+
+        return list;
+    }
+
+    private void addAllToSpiedList(List<MinecraftPlayerModel> list) {
         list.forEach(player -> {
             try {
                 addPlayerToSpying(player.getName());
             } catch (PlayerAlreadyInListException ignored) {}
         });
-
-        return list;
     }
 
     private Dimension getCurrentDimension() {

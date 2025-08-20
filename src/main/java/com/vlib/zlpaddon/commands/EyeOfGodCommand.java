@@ -32,10 +32,11 @@ public class EyeOfGodCommand extends Command {
                 .executes(context -> {
                     String nickname = PlayerListEntryArgumentType.get(context).getProfile().getName();
                     try {
-                        ZlpMapPlayersDTO.PositionDTO positionDTO = eyeOfGodModule.locatePlayer(nickname);
-                        info("Position of (highlight)%s(default) is %s",
-                            nickname,
-                            String.format("%.0f, %.0f, %.0f", positionDTO.getX(), positionDTO.getY(), positionDTO.getZ())
+                        MinecraftPlayerModel player = eyeOfGodModule.locatePlayer(nickname);
+                        info("Player (highlight)%s(default) in %s on %s",
+                            player.getName(),
+                            player.getDimension(),
+                            String.format("(highlight)%.0f, %.0f, %.0f(default)", player.getPosition().getX(), player.getPosition().getY(), player.getPosition().getZ())
                         );
                     } catch (PlayerNotFoundException e) {
                         error("Failed to find player " + nickname);
@@ -54,7 +55,11 @@ public class EyeOfGodCommand extends Command {
 
                     try {
                         List<MinecraftPlayerModel> playersInRadius = eyeOfGodModule.spyNearPlayer(radius);
-                        info("Players added to spying: " + listOfNamesToString(playersInRadius));
+                        if (!playersInRadius.isEmpty()) {
+                            info("Players added to spying: " + listOfNamesToString(playersInRadius));
+                            return SINGLE_SUCCESS;
+                        }
+                        warning("There is no one in the %.0f radius.", radius);
                     } catch (PlayerNotFoundException e) {
                         error("No player found in radius %s", radius);
                     }
